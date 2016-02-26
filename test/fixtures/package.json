@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "coffee-script": "1.10.0"
+  }
+}

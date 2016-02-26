@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+gem install bundler
+bundle install
+pushd test/fixtures/coffee
+npm install
+popd

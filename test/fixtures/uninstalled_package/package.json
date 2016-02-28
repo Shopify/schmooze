@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "less": "2.6.0"
+  }
+}

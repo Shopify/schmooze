@@ -2,6 +2,6 @@
 set -e
 gem install bundler
 bundle install
-pushd test/fixtures
+pushd test/fixtures/coffee
 npm install
 popd

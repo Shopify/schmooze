@@ -24,7 +24,7 @@ class SchmoozeTest < Minitest::Test
   end
 
   def setup
-    @schmoozer = CoffeeSchmoozer.new(File.join(__dir__, 'fixtures'))
+    @schmoozer = CoffeeSchmoozer.new(File.join(__dir__, 'fixtures', 'coffee'))
   end
 
   def test_that_it_has_a_version_number
@@ -33,9 +33,15 @@ class SchmoozeTest < Minitest::Test
 
   def test_it_generates_code
     assert_equal <<-JS.strip, @schmoozer.instance_variable_get(:@code).strip
-var coffee = require("coffee-script");
-var compile = require("coffee-script").compile;
-
+try {
+  var coffee = require("coffee-script");
+  var compile = require("coffee-script").compile;
+} catch (e) {
+  process.stdout.write(JSON.stringify(['err', e.toString()]));
+  process.stdout.write("\\n");
+  process.exit(1);
+}
+process.stdout.write("[\\"ok\\"]\\n");
 var __methods__ = {};
 __methods__["compile"] = (compile);
 __methods__["error"] = (function() {
@@ -82,9 +88,10 @@ JS
   end
 
   def test_error
-    assert_raises Schmooze::Error do
+    error = assert_raises Schmooze::Error do
       @schmoozer.error
     end
+    assert_match /Error: failed hard/, error.message
   end
 
   def test_async
@@ -92,9 +99,10 @@ JS
   end
 
   def test_async_error
-    assert_raises Schmooze::JavascriptError do
+    error = assert_raises Schmooze::JavascriptError do
       @schmoozer.async_error
     end
+    assert_match /Error: asynchronously failed so hard/, error.message
   end
 
   def test_compile

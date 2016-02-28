@@ -4,7 +4,13 @@ module Schmooze
   class ProcessorGenerator
     class << self
       def generate(imports, methods)
-%{#{imports.map {|import| generate_import(import)}.join}
+%{try {
+#{imports.map {|import| generate_import(import)}.join}} catch (e) {
+  process.stdout.write(JSON.stringify(['err', e.toString()]));
+  process.stdout.write("\\n");
+  process.exit(1);
+}
+process.stdout.write("[\\"ok\\"]\\n");
 var __methods__ = {};
 #{methods.map{ |method| generate_method(method[:name], method[:code]) }.join}
 require('readline').createInterface({
@@ -35,7 +41,7 @@ require('readline').createInterface({
 
       def generate_import(import)
         package, mid, path = import[:package].partition('.')
-        "var #{import[:identifier]} = require(#{package.to_json})#{mid}#{path};\n"
+        "  var #{import[:identifier]} = require(#{package.to_json})#{mid}#{path};\n"
       end
     end
   end

@@ -12,14 +12,19 @@ require('readline').createInterface({
   terminal: false,
 }).on('line', function(line) {
   var input = JSON.parse(line);
-  var output;
   try {
-    output = ['ok', __methods__[input[0]].apply(null, input[1])];
-  } catch (e) {
-    output = ['err', e.toString()];
+    Promise.resolve(__methods__[input[0]].apply(null, input[1])
+    ).then(function (result) {
+      process.stdout.write(JSON.stringify(['ok', result]));
+      process.stdout.write("\\n");
+    }).catch(function (error) {
+      process.stdout.write(JSON.stringify(['err', error.toString()]));
+      process.stdout.write("\\n");
+    });
+  } catch(error) {
+    process.stdout.write(JSON.stringify(['err', error.toString()]));
+    process.stdout.write("\\n");
   }
-  process.stdout.write(JSON.stringify(output));
-  process.stdout.write("\\n");
 });
 }
       end

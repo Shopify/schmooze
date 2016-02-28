@@ -5,7 +5,22 @@ class SchmoozeTest < Minitest::Test
     dependencies coffee: 'coffee-script', compile: 'coffee-script.compile'
 
     method :compile, 'compile'
+    method :error, %{function() {
+  throw new Error("failed hard");
+}}
     method :version, 'function() { return [process.version, coffee.VERSION]; }'
+    method :async_version, %{function() {
+  return new Promise(function(resolve) {
+    setTimeout(function() {
+      resolve([process.version, coffee.VERSION]);
+    }, 100);
+  });
+}}
+    method :async_error, %{function() {
+  return new Promise(function() {
+    throw new Error("asynchronously failed so hard");
+  });
+}}
   end
 
   def setup
@@ -23,27 +38,63 @@ var compile = require("coffee-script").compile;
 
 var __methods__ = {};
 __methods__["compile"] = (compile);
+__methods__["error"] = (function() {
+  throw new Error("failed hard");
+});
 __methods__["version"] = (function() { return [process.version, coffee.VERSION]; });
+__methods__["async_version"] = (function() {
+  return new Promise(function(resolve) {
+    setTimeout(function() {
+      resolve([process.version, coffee.VERSION]);
+    }, 100);
+  });
+});
+__methods__["async_error"] = (function() {
+  return new Promise(function() {
+    throw new Error("asynchronously failed so hard");
+  });
+});
 
 require('readline').createInterface({
   input: process.stdin,
   terminal: false,
 }).on('line', function(line) {
   var input = JSON.parse(line);
-  var output;
   try {
-    output = ['ok', __methods__[input[0]].apply(null, input[1])];
-  } catch (e) {
-    output = ['err', e.toString()];
+    Promise.resolve(__methods__[input[0]].apply(null, input[1])
+    ).then(function (result) {
+      process.stdout.write(JSON.stringify(['ok', result]));
+      process.stdout.write("\\n");
+    }).catch(function (error) {
+      process.stdout.write(JSON.stringify(['err', error.toString()]));
+      process.stdout.write("\\n");
+    });
+  } catch(error) {
+    process.stdout.write(JSON.stringify(['err', error.toString()]));
+    process.stdout.write("\\n");
   }
-  process.stdout.write(JSON.stringify(output));
-  process.stdout.write("\\n");
 });
 JS
   end
 
   def test_usage
     assert_equal [%x[node -v].strip, '1.10.0'], @schmoozer.version
+  end
+
+  def test_error
+    assert_raises Schmooze::Error do
+      @schmoozer.error
+    end
+  end
+
+  def test_async
+    assert_equal [%x[node -v].strip, '1.10.0'], @schmoozer.async_version
+  end
+
+  def test_async_error
+    assert_raises Schmooze::JavascriptError do
+      @schmoozer.async_error
+    end
   end
 
   def test_compile

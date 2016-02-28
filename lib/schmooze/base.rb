@@ -57,7 +57,7 @@ module Schmooze
         if status == 'ok'
           return_value
         else
-          raise Sprockets::Error, return_value
+          raise Schmooze::JavascriptError, return_value
         end
       rescue Errno::EPIPE
         raise Error, @stderr.read

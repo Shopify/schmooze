@@ -61,6 +61,14 @@ __methods__["async_error"] = (function() {
   });
 });
 
+function __handle_error__(error) {
+  if (error instanceof Error) {
+    process.stdout.write(JSON.stringify(['err', error.toString().replace(new RegExp('^' + error.name + ': '), ''), error.name]));
+  } else {
+    process.stdout.write(JSON.stringify(['err', error.toString()]));
+  }
+  process.stdout.write("\\n");
+}
 require('readline').createInterface({
   input: process.stdin,
   terminal: false,
@@ -71,13 +79,9 @@ require('readline').createInterface({
     ).then(function (result) {
       process.stdout.write(JSON.stringify(['ok', result]));
       process.stdout.write("\\n");
-    }).catch(function (error) {
-      process.stdout.write(JSON.stringify(['err', error.toString()]));
-      process.stdout.write("\\n");
-    });
+    }).catch(__handle_error__);
   } catch(error) {
-    process.stdout.write(JSON.stringify(['err', error.toString()]));
-    process.stdout.write("\\n");
+    __handle_error__(error);
   }
 });
 JS
@@ -88,10 +92,10 @@ JS
   end
 
   def test_error
-    error = assert_raises Schmooze::Error do
+    error = assert_raises Schmooze::JavaScript::Error do
       @schmoozer.error
     end
-    assert_match /Error: failed hard/, error.message
+    assert_match /failed hard/, error.message
   end
 
   def test_async
@@ -99,10 +103,10 @@ JS
   end
 
   def test_async_error
-    error = assert_raises Schmooze::JavascriptError do
+    error = assert_raises Schmooze::JavaScript::Error do
       @schmoozer.async_error
     end
-    assert_match /Error: asynchronously failed so hard/, error.message
+    assert_match /asynchronously failed so hard/, error.message
   end
 
   def test_compile

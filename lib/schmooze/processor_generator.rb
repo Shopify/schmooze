@@ -13,6 +13,14 @@ module Schmooze
 process.stdout.write("[\\"ok\\"]\\n");
 var __methods__ = {};
 #{methods.map{ |method| generate_method(method[:name], method[:code]) }.join}
+function __handle_error__(error) {
+  if (error instanceof Error) {
+    process.stdout.write(JSON.stringify(['err', error.toString().replace(new RegExp('^' + error.name + ': '), ''), error.name]));
+  } else {
+    process.stdout.write(JSON.stringify(['err', error.toString()]));
+  }
+  process.stdout.write("\\n");
+}
 require('readline').createInterface({
   input: process.stdin,
   terminal: false,
@@ -23,13 +31,9 @@ require('readline').createInterface({
     ).then(function (result) {
       process.stdout.write(JSON.stringify(['ok', result]));
       process.stdout.write("\\n");
-    }).catch(function (error) {
-      process.stdout.write(JSON.stringify(['err', error.toString()]));
-      process.stdout.write("\\n");
-    });
+    }).catch(__handle_error__);
   } catch(error) {
-    process.stdout.write(JSON.stringify(['err', error.toString()]));
-    process.stdout.write("\\n");
+    __handle_error__(error);
   }
 });
 }

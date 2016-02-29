@@ -99,12 +99,16 @@ module Schmooze
         input = @stdout.gets
         raise Errno::EPIPE, "Can't read from stdout" if input.nil?
 
-        status, return_value = JSON.parse(input)
+        status, message, error_class = JSON.parse(input)
 
         if status == 'ok'
-          return_value
+          message
         else
-          raise Schmooze::JavascriptError, return_value
+          if error_class.nil?
+            raise Schmooze::JavaScript::UnknownError, message
+          else
+            raise Schmooze::JavaScript.const_get(error_class, false), message
+          end
         end
       rescue Errno::EPIPE
         # TODO(bouk): restart or something? If this happens the process is completely broken

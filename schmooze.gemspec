@@ -9,6 +9,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ['Bouke van der Bijl']
   spec.email         = ['bouke@shopify.com']
 
+  spec.license       = "MIT"
   spec.summary       = %q{Schmooze lets Ruby and Node.js work together intimately.}
   spec.description   = File.read(File.join(__dir__, 'README.md'))
   spec.homepage      = 'https://github.com/Shopify/schmooze'

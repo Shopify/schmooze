@@ -11,6 +11,7 @@ Gem::Specification.new do |spec|
 
   spec.license       = "MIT"
   spec.summary       = %q{Schmooze lets Ruby and Node.js work together intimately.}
+  spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   spec.description   = File.read(File.join(__dir__, 'README.md'))
   spec.homepage      = 'https://github.com/Shopify/schmooze'
 

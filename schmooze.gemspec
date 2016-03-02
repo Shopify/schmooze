@@ -11,8 +11,8 @@ Gem::Specification.new do |spec|
 
   spec.license       = "MIT"
   spec.summary       = %q{Schmooze lets Ruby and Node.js work together intimately.}
+  spec.description   = %q{Schmooze allows a Ruby library writer to succintly interoperate between Ruby and JavaScript code. It has a clever DSL to make this possible.}
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
-  spec.description   = File.read(File.join(__dir__, 'README.md'))
   spec.homepage      = 'https://github.com/Shopify/schmooze'
 
   spec.require_paths = ['lib']

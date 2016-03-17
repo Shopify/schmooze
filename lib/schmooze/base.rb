@@ -67,6 +67,7 @@ module Schmooze
 
       def ensure_packages_are_initiated
         input = @stdout.gets
+        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{@stderr.read}" if input.nil?
         result = JSON.parse(input)
         unless result[0] == 'ok'
           @stdin.close

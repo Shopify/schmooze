@@ -44,36 +44,40 @@ module Schmooze
       @env = env
       @root = root
       @code = ProcessorGenerator.generate(self.class.instance_variable_get(:@imports) || [], self.class.instance_variable_get(:@methods) || [])
-
-      spawn_process
     end
 
     def pid
-      @process_thread.pid
+      @process_thread && @process_thread.pid
     end
 
     private
+      def ensure_process_is_spawned
+        return if @process_thread
+        spawn_process
+      end
+
       def spawn_process
-        @stdin, @stdout, @stderr, @process_thread = Open3.popen3(
+        process_data = Open3.popen3(
           @env,
           'node',
           '-e',
           @code,
           chdir: @root
         )
-        ensure_packages_are_initiated
-        ObjectSpace.define_finalizer(self, self.class.send(:finalize, @stdin, @stdout, @stderr, @process_thread))
+        ensure_packages_are_initiated(*process_data)
+        ObjectSpace.define_finalizer(self, self.class.send(:finalize, *process_data))
+        @stdin, @stdout, @stderr, @process_thread = process_data
       end
 
-      def ensure_packages_are_initiated
-        input = @stdout.gets
-        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{@stderr.read}" if input.nil?
+      def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
+        input = stdout.gets
+        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{stderr.read}" if input.nil?
         result = JSON.parse(input)
         unless result[0] == 'ok'
-          @stdin.close
-          @stdout.close
-          @stderr.close
-          @process_thread.join
+          stdin.close
+          stdout.close
+          stderr.close
+          process_thread.join
 
           error_message = result[1]
           if /\AError: Cannot find module '(.*)'\z/ =~ error_message
@@ -96,6 +100,8 @@ module Schmooze
       end
 
       def call_js_method(method, args)
+        ensure_process_is_spawned
+
         @stdin.puts JSON.dump([method, args])
         input = @stdout.gets
         raise Errno::EPIPE, "Can't read from stdout" if input.nil?
@@ -111,7 +117,7 @@ module Schmooze
             raise Schmooze::JavaScript.const_get(error_class, false), message
           end
         end
-      rescue Errno::EPIPE
+      rescue Errno::EPIPE, IOError
         # TODO(bouk): restart or something? If this happens the process is completely broken
         raise ::StandardError, "Schmooze process failed:\n#{@stderr.read}"
       end

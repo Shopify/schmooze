@@ -32,7 +32,7 @@ class SchmoozeTest < Minitest::Test
   end
 
   def test_it_generates_code
-    assert_equal <<-JS.strip, @schmoozer.instance_variable_get(:@code).strip
+    assert_equal <<-JS.strip, @schmoozer.instance_variable_get(:@_schmooze_code).strip
 try {
   var coffee = require("coffee-script");
   var compile = require("coffee-script").compile;

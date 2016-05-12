@@ -8,9 +8,9 @@ module Schmooze
     class << self
       protected
         def dependencies(deps)
-          @imports ||= []
+          @_schmooze_imports ||= []
           deps.each do |identifier, package|
-            @imports << {
+            @_schmooze_imports << {
               identifier: identifier,
               package: package
             }
@@ -18,8 +18,8 @@ module Schmooze
         end
 
         def method(name, code)
-          @methods ||= []
-          @methods << {
+          @_schmooze_methods ||= []
+          @_schmooze_methods << {
             name: name,
             code: code
           }
@@ -41,32 +41,32 @@ module Schmooze
     end
 
     def initialize(root, env={})
-      @env = env
-      @root = root
-      @code = ProcessorGenerator.generate(self.class.instance_variable_get(:@imports) || [], self.class.instance_variable_get(:@methods) || [])
+      @_schmooze_env = env
+      @_schmooze_root = root
+      @_schmooze_code = ProcessorGenerator.generate(self.class.instance_variable_get(:@_schmooze_imports) || [], self.class.instance_variable_get(:@_schmooze_methods) || [])
     end
 
     def pid
-      @process_thread && @process_thread.pid
+      @_schmooze_process_thread && @_schmooze_process_thread.pid
     end
 
     private
       def ensure_process_is_spawned
-        return if @process_thread
+        return if @_schmooze_process_thread
         spawn_process
       end
 
       def spawn_process
         process_data = Open3.popen3(
-          @env,
+          @_schmooze_env,
           'node',
           '-e',
-          @code,
-          chdir: @root
+          @_schmooze_code,
+          chdir: @_schmooze_root
         )
         ensure_packages_are_initiated(*process_data)
         ObjectSpace.define_finalizer(self, self.class.send(:finalize, *process_data))
-        @stdin, @stdout, @stderr, @process_thread = process_data
+        @_schmooze_stdin, @_schmooze_stdout, @_schmooze_stderr, @_schmooze_process_thread = process_data
       end
 
       def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
@@ -82,12 +82,12 @@ module Schmooze
           error_message = result[1]
           if /\AError: Cannot find module '(.*)'\z/ =~ error_message
             package_name = $1
-            package_json_path = File.join(@root, 'package.json')
+            package_json_path = File.join(@_schmooze_root, 'package.json')
             begin
               package = JSON.parse(File.read(package_json_path))
               %w(dependencies devDependencies).each do |key|
                 if package.has_key?(key) && package[key].has_key?(package_name)
-                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in '#{package_json_path}' however, please run 'npm install' from '#{@root}'"
+                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in '#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_root}'"
                 end
               end
             rescue Errno::ENOENT
@@ -102,8 +102,8 @@ module Schmooze
       def call_js_method(method, args)
         ensure_process_is_spawned
 
-        @stdin.puts JSON.dump([method, args])
-        input = @stdout.gets
+        @_schmooze_stdin.puts JSON.dump([method, args])
+        input = @_schmooze_stdout.gets
         raise Errno::EPIPE, "Can't read from stdout" if input.nil?
 
         status, message, error_class = JSON.parse(input)
@@ -119,7 +119,7 @@ module Schmooze
         end
       rescue Errno::EPIPE, IOError
         # TODO(bouk): restart or something? If this happens the process is completely broken
-        raise ::StandardError, "Schmooze process failed:\n#{@stderr.read}"
+        raise ::StandardError, "Schmooze process failed:\n#{@_schmooze_stderr.read}"
       end
   end
 end

@@ -60,55 +60,7 @@ module Schmooze
     private
       def ensure_process_is_spawned
         return if @_schmooze_bridge.process_thread
-        spawn_process
-      end
-
-      def spawn_process
-        stdin, stdout, stderr, process_thread = Open3.popen3(
-          @_schmooze_bridge.env,
-          'node',
-          '-e',
-          @_schmooze_bridge.code,
-          chdir: @_schmooze_bridge.root
-        )
-        ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
-        ObjectSpace.define_finalizer(self, self.class.send(:finalize, stdin, stdout, stderr, process_thread))
-        @_schmooze_bridge.stdin = stdin
-        @_schmooze_bridge.stdout = stdout
-        @_schmooze_bridge.stderr = stderr
-        @_schmooze_bridge.process_thread = process_thread
-      end
-
-      def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
-        input = stdout.gets
-        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{stderr.read}" if input.nil?
-        result = JSON.parse(input)
-        unless result[0] == 'ok'
-          stdin.close
-          stdout.close
-          stderr.close
-          process_thread.join
-
-          error_message = result[1]
-          if /\AError: Cannot find module '(.*)'\z/ =~ error_message
-            package_name = $1
-            package_json_path = File.join(@_schmooze_bridge.root, 'package.json')
-            begin
-              package = JSON.parse(File.read(package_json_path))
-              %w(dependencies devDependencies).each do |key|
-                if package.has_key?(key) && package[key].has_key?(package_name)
-                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in "\
-                    "'#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_bridge.root}'"
-                end
-              end
-            rescue Errno::ENOENT
-            end
-            raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. You need to add it to "\
-              "'#{package_json_path}' and run 'npm install'"
-          else
-            raise Schmooze::Error, error_message
-          end
-        end
+        @_schmooze_bridge.spawn_process(self.class)
       end
 
       def call_js_method(method, args)
@@ -150,6 +102,54 @@ module Schmooze
         @env = env
         @root = root
         @code = code
+      end
+
+      def spawn_process(klass)
+        stdin, stdout, stderr, process_thread = Open3.popen3(
+          @env,
+          'node',
+          '-e',
+          @code,
+          chdir: @root
+        )
+        ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
+        ObjectSpace.define_finalizer(self, klass.send(:finalize, stdin, stdout, stderr, process_thread))
+        @stdin = stdin
+        @stdout = stdout
+        @stderr = stderr
+        @process_thread = process_thread
+      end
+
+      def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
+        input = stdout.gets
+        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{stderr.read}" if input.nil?
+        result = JSON.parse(input)
+        unless result[0] == 'ok'
+          stdin.close
+          stdout.close
+          stderr.close
+          process_thread.join
+
+          error_message = result[1]
+          if /\AError: Cannot find module '(.*)'\z/ =~ error_message
+            package_name = $1
+            package_json_path = File.join(@root, 'package.json')
+            begin
+              package = JSON.parse(File.read(package_json_path))
+              %w(dependencies devDependencies).each do |key|
+                if package.has_key?(key) && package[key].has_key?(package_name)
+                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in "\
+                    "'#{package_json_path}' however, please run 'npm install' from '#{@root}'"
+                end
+              end
+            rescue Errno::ENOENT
+            end
+            raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. You need to add it to "\
+              "'#{package_json_path}' and run 'npm install'"
+          else
+            raise Schmooze::Error, error_message
+          end
+        end
       end
     end
 

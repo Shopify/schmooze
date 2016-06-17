@@ -43,38 +43,40 @@ module Schmooze
     end
 
     def initialize(root, env={})
-      @_schmooze_env = env
-      @_schmooze_root = root
-      @_schmooze_code = ProcessorGenerator.generate(
-        self.class.send(:_schmooze_declarations).imports_list,
-        self.class.send(:_schmooze_declarations).methods_list
+      @_schmooze_bridge = Bridge.new(
+        env: env,
+        root: root,
+        code: ProcessorGenerator.generate(
+          self.class.send(:_schmooze_declarations).imports_list,
+          self.class.send(:_schmooze_declarations).methods_list
+        )
       )
     end
 
     def pid
-      @_schmooze_process_thread && @_schmooze_process_thread.pid
+      @_schmooze_bridge.process_thread && @_schmooze_bridge.process_thread.pid
     end
 
     private
       def ensure_process_is_spawned
-        return if @_schmooze_process_thread
+        return if @_schmooze_bridge.process_thread
         spawn_process
       end
 
       def spawn_process
         stdin, stdout, stderr, process_thread = Open3.popen3(
-          @_schmooze_env,
+          @_schmooze_bridge.env,
           'node',
           '-e',
-          @_schmooze_code,
-          chdir: @_schmooze_root
+          @_schmooze_bridge.code,
+          chdir: @_schmooze_bridge.root
         )
         ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
         ObjectSpace.define_finalizer(self, self.class.send(:finalize, stdin, stdout, stderr, process_thread))
-        @_schmooze_stdin = stdin
-        @_schmooze_stdout = stdout
-        @_schmooze_stderr = stderr
-        @_schmooze_process_thread = process_thread
+        @_schmooze_bridge.stdin = stdin
+        @_schmooze_bridge.stdout = stdout
+        @_schmooze_bridge.stderr = stderr
+        @_schmooze_bridge.process_thread = process_thread
       end
 
       def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
@@ -90,13 +92,13 @@ module Schmooze
           error_message = result[1]
           if /\AError: Cannot find module '(.*)'\z/ =~ error_message
             package_name = $1
-            package_json_path = File.join(@_schmooze_root, 'package.json')
+            package_json_path = File.join(@_schmooze_bridge.root, 'package.json')
             begin
               package = JSON.parse(File.read(package_json_path))
               %w(dependencies devDependencies).each do |key|
                 if package.has_key?(key) && package[key].has_key?(package_name)
                   raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in "\
-                    "'#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_root}'"
+                    "'#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_bridge.root}'"
                 end
               end
             rescue Errno::ENOENT
@@ -112,8 +114,8 @@ module Schmooze
       def call_js_method(method, args)
         ensure_process_is_spawned
 
-        @_schmooze_stdin.puts JSON.dump([method, args])
-        input = @_schmooze_stdout.gets
+        @_schmooze_bridge.stdin.puts JSON.dump([method, args])
+        input = @_schmooze_bridge.stdout.gets
         raise Errno::EPIPE, "Can't read from stdout" if input.nil?
 
         status, message, error_class = JSON.parse(input)
@@ -129,7 +131,7 @@ module Schmooze
         end
       rescue Errno::EPIPE, IOError
         # TODO(bouk): restart or something? If this happens the process is completely broken
-        raise ::StandardError, "Schmooze process failed:\n#{@_schmooze_stderr.read}"
+        raise ::StandardError, "Schmooze process failed:\n#{@_schmooze_bridge.stderr.read}"
       end
 
     class Declarations
@@ -141,6 +143,16 @@ module Schmooze
       end
     end
 
-    private_constant :Declarations
+    class Bridge
+      attr_accessor :env, :root, :code, :process_thread, :stdin, :stdout, :stderr
+
+      def initialize(env: nil, root: nil, code: nil)
+        @env = env
+        @root = root
+        @code = code
+      end
+    end
+
+    private_constant :Declarations, :Bridge
   end
 end

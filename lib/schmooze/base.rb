@@ -8,9 +8,8 @@ module Schmooze
     class << self
       protected
         def dependencies(deps)
-          @_schmooze_imports ||= []
           deps.each do |identifier, package|
-            @_schmooze_imports << {
+            _schmooze_declarations.imports_list << {
               identifier: identifier,
               package: package
             }
@@ -18,8 +17,7 @@ module Schmooze
         end
 
         def method(name, code)
-          @_schmooze_methods ||= []
-          @_schmooze_methods << {
+          _schmooze_declarations.methods_list << {
             name: name,
             code: code
           }
@@ -27,6 +25,10 @@ module Schmooze
           define_method(name) do |*args|
             call_js_method(name, args)
           end
+        end
+
+        def _schmooze_declarations
+          @_schmooze_declarations ||= Declarations.new
         end
 
         def finalize(stdin, stdout, stderr, process_thread)
@@ -44,8 +46,8 @@ module Schmooze
       @_schmooze_env = env
       @_schmooze_root = root
       @_schmooze_code = ProcessorGenerator.generate(
-        self.class.instance_variable_get(:@_schmooze_imports) || [],
-        self.class.instance_variable_get(:@_schmooze_methods) || []
+        self.class.send(:_schmooze_declarations).imports_list,
+        self.class.send(:_schmooze_declarations).methods_list
       )
     end
 
@@ -126,5 +128,16 @@ module Schmooze
         # TODO(bouk): restart or something? If this happens the process is completely broken
         raise ::StandardError, "Schmooze process failed:\n#{@_schmooze_stderr.read}"
       end
+
+    class Declarations
+      attr_accessor :imports_list, :methods_list
+
+      def initialize(imports_list: [], methods_list: [])
+        @imports_list = imports_list
+        @methods_list = methods_list
+      end
+    end
+
+    private_constant :Declarations
   end
 end

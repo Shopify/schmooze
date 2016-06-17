@@ -46,10 +46,7 @@ module Schmooze
       @_schmooze_bridge = Bridge.new(
         env: env,
         root: root,
-        code: ProcessorGenerator.generate(
-          self.class.send(:_schmooze_declarations).imports_list,
-          self.class.send(:_schmooze_declarations).methods_list
-        )
+        schmooze_class: self.class
       )
     end
 
@@ -60,7 +57,7 @@ module Schmooze
     private
       def ensure_process_is_spawned
         return if @_schmooze_bridge.process_thread
-        @_schmooze_bridge.spawn_process(self.class)
+        @_schmooze_bridge.spawn_process
       end
 
       def call_js_method(method, args)
@@ -98,17 +95,21 @@ module Schmooze
     class Bridge
       attr_accessor :env, :root, :code, :process_thread, :stdin, :stdout, :stderr
 
-      def initialize(env: nil, root: nil, code: nil)
+      def initialize(env: nil, root: nil, schmooze_class: nil)
         @env = env
         @root = root
-        @code = code
+        @schmooze_class = schmooze_class
+        @code = ProcessorGenerator.generate(
+          @schmooze_class.send(:_schmooze_declarations).imports_list,
+          @schmooze_class.send(:_schmooze_declarations).methods_list
+        )
       end
 
       def process_thread_pid
         process_thread && process_thread.pid
       end
 
-      def spawn_process(klass)
+      def spawn_process
         @stdin, @stdout, @stderr, process_thread = Open3.popen3(
           @env,
           'node',
@@ -117,7 +118,7 @@ module Schmooze
           chdir: @root
         )
         ensure_packages_are_initiated(process_thread)
-        ObjectSpace.define_finalizer(self, klass.send(:finalize, @stdin, @stdout, @stderr, process_thread))
+        ObjectSpace.define_finalizer(self, @schmooze_class.send(:finalize, @stdin, @stdout, @stderr, process_thread))
         @process_thread = process_thread
       end
 

@@ -62,16 +62,19 @@ module Schmooze
       end
 
       def spawn_process
-        process_data = Open3.popen3(
+        stdin, stdout, stderr, process_thread = Open3.popen3(
           @_schmooze_env,
           'node',
           '-e',
           @_schmooze_code,
           chdir: @_schmooze_root
         )
-        ensure_packages_are_initiated(*process_data)
-        ObjectSpace.define_finalizer(self, self.class.send(:finalize, *process_data))
-        @_schmooze_stdin, @_schmooze_stdout, @_schmooze_stderr, @_schmooze_process_thread = process_data
+        ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
+        ObjectSpace.define_finalizer(self, self.class.send(:finalize, stdin, stdout, stderr, process_thread))
+        @_schmooze_stdin = stdin
+        @_schmooze_stdout = stdout
+        @_schmooze_stderr = stderr
+        @_schmooze_process_thread = process_thread
       end
 
       def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)

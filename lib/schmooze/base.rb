@@ -105,29 +105,26 @@ module Schmooze
       end
 
       def spawn_process(klass)
-        stdin, stdout, stderr, process_thread = Open3.popen3(
+        @stdin, @stdout, @stderr, process_thread = Open3.popen3(
           @env,
           'node',
           '-e',
           @code,
           chdir: @root
         )
-        ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
-        ObjectSpace.define_finalizer(self, klass.send(:finalize, stdin, stdout, stderr, process_thread))
-        @stdin = stdin
-        @stdout = stdout
-        @stderr = stderr
+        ensure_packages_are_initiated(process_thread)
+        ObjectSpace.define_finalizer(self, klass.send(:finalize, @stdin, @stdout, @stderr, process_thread))
         @process_thread = process_thread
       end
 
-      def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
-        input = stdout.gets
-        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{stderr.read}" if input.nil?
+      def ensure_packages_are_initiated(process_thread)
+        input = @stdout.gets
+        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{@stderr.read}" if input.nil?
         result = JSON.parse(input)
         unless result[0] == 'ok'
-          stdin.close
-          stdout.close
-          stderr.close
+          @stdin.close
+          @stdout.close
+          @stderr.close
           process_thread.join
 
           error_message = result[1]

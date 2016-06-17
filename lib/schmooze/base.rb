@@ -43,7 +43,10 @@ module Schmooze
     def initialize(root, env={})
       @_schmooze_env = env
       @_schmooze_root = root
-      @_schmooze_code = ProcessorGenerator.generate(self.class.instance_variable_get(:@_schmooze_imports) || [], self.class.instance_variable_get(:@_schmooze_methods) || [])
+      @_schmooze_code = ProcessorGenerator.generate(
+        self.class.instance_variable_get(:@_schmooze_imports) || [],
+        self.class.instance_variable_get(:@_schmooze_methods) || []
+      )
     end
 
     def pid
@@ -87,12 +90,14 @@ module Schmooze
               package = JSON.parse(File.read(package_json_path))
               %w(dependencies devDependencies).each do |key|
                 if package.has_key?(key) && package[key].has_key?(package_name)
-                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in '#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_root}'"
+                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in "\
+                    "'#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_root}'"
                 end
               end
             rescue Errno::ENOENT
             end
-            raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. You need to add it to '#{package_json_path}' and run 'npm install'"
+            raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. You need to add it to "\
+              "'#{package_json_path}' and run 'npm install'"
           else
             raise Schmooze::Error, error_message
           end

@@ -54,7 +54,7 @@ module Schmooze
     end
 
     def pid
-      @_schmooze_bridge.process_thread && @_schmooze_bridge.process_thread.pid
+      @_schmooze_bridge.process_thread_pid
     end
 
     private
@@ -102,6 +102,10 @@ module Schmooze
         @env = env
         @root = root
         @code = code
+      end
+
+      def process_thread_pid
+        process_thread && process_thread.pid
       end
 
       def spawn_process(klass)

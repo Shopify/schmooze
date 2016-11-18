@@ -104,3 +104,17 @@ Schmooze::JavaScript::SyntaxError: [stdin]:1:1: error: unexpected <=
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/Shopify/schmooze.
+
+### Make sure the tests pass
+
+Run the setup script
+
+```
+$ ./script/setup
+```
+
+Run the tests
+
+```
+$ ./script/test
+```

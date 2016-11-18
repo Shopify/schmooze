@@ -86,7 +86,7 @@ class CoffeeSchmoozer < Schmooze::Base
   method :compile, 'coffee.compile'
 end
 
-CoffeeSchmoozer.new(dir).compile('<=> 1')
+CoffeeSchmoozer.new(__dir__).compile('<=> 1')
 ```
 
 This will raise

@@ -24,7 +24,8 @@ class SchmoozeTest < Minitest::Test
   end
 
   def setup
-    @schmoozer = CoffeeSchmoozer.new(File.join(__dir__, 'fixtures', 'coffee'))
+    @root = File.join(__dir__, 'fixtures', 'coffee')
+    @schmoozer = CoffeeSchmoozer.new(@root)
   end
 
   def test_that_it_has_a_version_number
@@ -33,6 +34,10 @@ class SchmoozeTest < Minitest::Test
 
   def test_it_generates_code
     assert_equal <<-JS.strip, @schmoozer.instance_variable_get(:@_schmooze_code).strip
+process.chdir(#{@root.to_json});
+var path = require('path');
+module.filename = path.join(process.cwd(), '[eval]');
+module.paths = require('module')._nodeModulePaths(process.cwd());
 try {
   var coffee = require("coffee-script");
   var compile = require("coffee-script").compile;

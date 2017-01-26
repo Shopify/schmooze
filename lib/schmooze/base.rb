@@ -8,9 +8,8 @@ module Schmooze
     class << self
       protected
         def dependencies(deps)
-          @_schmooze_imports ||= []
           deps.each do |identifier, package|
-            @_schmooze_imports << {
+            _schmooze_declarations.imports_list << {
               identifier: identifier,
               package: package
             }
@@ -18,8 +17,7 @@ module Schmooze
         end
 
         def method(name, code)
-          @_schmooze_methods ||= []
-          @_schmooze_methods << {
+          _schmooze_declarations.methods_list << {
             name: name,
             code: code
           }
@@ -27,6 +25,10 @@ module Schmooze
           define_method(name) do |*args|
             call_js_method(name, args)
           end
+        end
+
+        def _schmooze_declarations
+          @_schmooze_declarations ||= Declarations.new
         end
 
         def finalize(stdin, stdout, stderr, process_thread)
@@ -41,69 +43,28 @@ module Schmooze
     end
 
     def initialize(root, env={})
-      @_schmooze_env = env
-      @_schmooze_root = root
-      @_schmooze_code = ProcessorGenerator.generate(self.class.instance_variable_get(:@_schmooze_imports) || [], self.class.instance_variable_get(:@_schmooze_methods) || [])
+      @_schmooze_bridge = Bridge.new(
+        env: env,
+        root: root,
+        schmooze_class: self.class
+      )
     end
 
     def pid
-      @_schmooze_process_thread && @_schmooze_process_thread.pid
+      @_schmooze_bridge.process_thread_pid
     end
 
     private
       def ensure_process_is_spawned
-        return if @_schmooze_process_thread
-        spawn_process
-      end
-
-      def spawn_process
-        process_data = Open3.popen3(
-          @_schmooze_env,
-          'node',
-          '-e',
-          @_schmooze_code,
-          chdir: @_schmooze_root
-        )
-        ensure_packages_are_initiated(*process_data)
-        ObjectSpace.define_finalizer(self, self.class.send(:finalize, *process_data))
-        @_schmooze_stdin, @_schmooze_stdout, @_schmooze_stderr, @_schmooze_process_thread = process_data
-      end
-
-      def ensure_packages_are_initiated(stdin, stdout, stderr, process_thread)
-        input = stdout.gets
-        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{stderr.read}" if input.nil?
-        result = JSON.parse(input)
-        unless result[0] == 'ok'
-          stdin.close
-          stdout.close
-          stderr.close
-          process_thread.join
-
-          error_message = result[1]
-          if /\AError: Cannot find module '(.*)'\z/ =~ error_message
-            package_name = $1
-            package_json_path = File.join(@_schmooze_root, 'package.json')
-            begin
-              package = JSON.parse(File.read(package_json_path))
-              %w(dependencies devDependencies).each do |key|
-                if package.has_key?(key) && package[key].has_key?(package_name)
-                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in '#{package_json_path}' however, please run 'npm install' from '#{@_schmooze_root}'"
-                end
-              end
-            rescue Errno::ENOENT
-            end
-            raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. You need to add it to '#{package_json_path}' and run 'npm install'"
-          else
-            raise Schmooze::Error, error_message
-          end
-        end
+        return if @_schmooze_bridge.process_thread
+        @_schmooze_bridge.spawn_process
       end
 
       def call_js_method(method, args)
         ensure_process_is_spawned
 
-        @_schmooze_stdin.puts JSON.dump([method, args])
-        input = @_schmooze_stdout.gets
+        @_schmooze_bridge.stdin.puts JSON.dump([method, args])
+        input = @_schmooze_bridge.stdout.gets
         raise Errno::EPIPE, "Can't read from stdout" if input.nil?
 
         status, message, error_class = JSON.parse(input)
@@ -119,7 +80,81 @@ module Schmooze
         end
       rescue Errno::EPIPE, IOError
         # TODO(bouk): restart or something? If this happens the process is completely broken
-        raise ::StandardError, "Schmooze process failed:\n#{@_schmooze_stderr.read}"
+        raise ::StandardError, "Schmooze process failed:\n#{@_schmooze_bridge.stderr.read}"
       end
+
+    class Declarations
+      attr_accessor :imports_list, :methods_list
+
+      def initialize(imports_list: [], methods_list: [])
+        @imports_list = imports_list
+        @methods_list = methods_list
+      end
+    end
+
+    class Bridge
+      attr_accessor :env, :root, :code, :process_thread, :stdin, :stdout, :stderr
+
+      def initialize(env: nil, root: nil, schmooze_class: nil)
+        @env = env
+        @root = root
+        @schmooze_class = schmooze_class
+        @code = ProcessorGenerator.generate(
+          @schmooze_class.send(:_schmooze_declarations).imports_list,
+          @schmooze_class.send(:_schmooze_declarations).methods_list
+        )
+      end
+
+      def process_thread_pid
+        process_thread && process_thread.pid
+      end
+
+      def spawn_process
+        @stdin, @stdout, @stderr, process_thread = Open3.popen3(
+          @env,
+          'node',
+          '-e',
+          @code,
+          chdir: @root
+        )
+        ensure_packages_are_initiated(process_thread)
+        ObjectSpace.define_finalizer(self, @schmooze_class.send(:finalize, @stdin, @stdout, @stderr, process_thread))
+        @process_thread = process_thread
+      end
+
+      def ensure_packages_are_initiated(process_thread)
+        input = @stdout.gets
+        raise Schmooze::Error, "Failed to instantiate Schmooze process:\n#{@stderr.read}" if input.nil?
+        result = JSON.parse(input)
+        unless result[0] == 'ok'
+          @stdin.close
+          @stdout.close
+          @stderr.close
+          process_thread.join
+
+          error_message = result[1]
+          if /\AError: Cannot find module '(.*)'\z/ =~ error_message
+            package_name = $1
+            package_json_path = File.join(@root, 'package.json')
+            begin
+              package = JSON.parse(File.read(package_json_path))
+              %w(dependencies devDependencies).each do |key|
+                if package.has_key?(key) && package[key].has_key?(package_name)
+                  raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. The module was found in "\
+                    "'#{package_json_path}' however, please run 'npm install' from '#{@root}'"
+                end
+              end
+            rescue Errno::ENOENT
+            end
+            raise Schmooze::DependencyError, "Cannot find module '#{package_name}'. You need to add it to "\
+              "'#{package_json_path}' and run 'npm install'"
+          else
+            raise Schmooze::Error, error_message
+          end
+        end
+      end
+    end
+
+    private_constant :Declarations, :Bridge
   end
 end

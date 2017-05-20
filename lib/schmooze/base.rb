@@ -41,6 +41,7 @@ module Schmooze
     end
 
     def initialize(root, env={})
+      @_schmooze_process_thread = nil
       @_schmooze_env = env
       @_schmooze_root = root
       @_schmooze_code = ProcessorGenerator.generate(self.class.instance_variable_get(:@_schmooze_imports) || [], self.class.instance_variable_get(:@_schmooze_methods) || [])

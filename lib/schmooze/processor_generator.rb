@@ -44,7 +44,12 @@ require('readline').createInterface({
       end
 
       def generate_import(import)
-        package, mid, path = import[:package].partition('.')
+        if import[:package].start_with?('.') # if it local script else package
+          _, _, package, mid, path = import[:package].partition('.')
+          package = '.' + package
+        else
+          package, mid, path = import[:package].partition('.')
+        end
         "  var #{import[:identifier]} = require(#{package.to_json})#{mid}#{path};\n"
       end
     end

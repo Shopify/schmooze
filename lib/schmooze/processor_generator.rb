@@ -3,8 +3,13 @@ require 'json'
 module Schmooze
   class ProcessorGenerator
     class << self
-      def generate(imports, methods)
-%{try {
+      def generate(root, imports, methods)
+%{
+process.chdir(#{root.to_json});
+var path = require('path');
+module.filename = path.join(process.cwd(), '[eval]');
+module.paths = require('module')._nodeModulePaths(process.cwd());
+try {
 #{imports.map {|import| generate_import(import)}.join}} catch (e) {
   process.stdout.write(JSON.stringify(['err', e.toString()]));
   process.stdout.write("\\n");

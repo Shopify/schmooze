@@ -1,6 +1,6 @@
 require 'json'
-require 'open3'
 
+require 'schmooze/open3'
 require 'schmooze/processor_generator'
 
 module Schmooze
@@ -43,7 +43,7 @@ module Schmooze
     def initialize(root, env={})
       @_schmooze_env = env
       @_schmooze_root = root
-      @_schmooze_code = ProcessorGenerator.generate(self.class.instance_variable_get(:@_schmooze_imports) || [], self.class.instance_variable_get(:@_schmooze_methods) || [])
+      @_schmooze_code = ProcessorGenerator.generate(root, self.class.instance_variable_get(:@_schmooze_imports) || [], self.class.instance_variable_get(:@_schmooze_methods) || [])
     end
 
     def pid
@@ -62,7 +62,6 @@ module Schmooze
           'node',
           '-e',
           @_schmooze_code,
-          chdir: @_schmooze_root
         )
         ensure_packages_are_initiated(*process_data)
         ObjectSpace.define_finalizer(self, self.class.send(:finalize, *process_data))

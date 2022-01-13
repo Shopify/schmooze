@@ -34,7 +34,11 @@ module Schmooze
             stdin.close
             stdout.close
             stderr.close
-            Process.kill(0, process_thread.pid)
+            begin
+              Process.kill(0, process_thread.pid)
+            rescue Errno::ESRCH
+              # Process is already dead, so no worries.
+            end
             process_thread.value
           end
         end

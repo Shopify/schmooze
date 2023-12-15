@@ -29,17 +29,22 @@ module Schmooze
           end
         end
 
-        def finalize(stdin, stdout, stderr, process_thread)
+        def finalize(owner_pid, stdin, stdout, stderr, process_thread)
           proc do
-            stdin.close
-            stdout.close
-            stderr.close
-            begin
-              Process.kill(0, process_thread.pid)
-            rescue Errno::ESRCH
-              # Process is already dead, so no worries.
+            # First check if we're still the owner. e.g. if there was a fork
+            # this finalizer will be called in both the child and the parent.
+            # Only the parent should care about the subprocess.
+            if owner_pid == Process.pid
+              stdin.close
+              stdout.close
+              stderr.close
+              begin
+                Process.kill(:KILL, process_thread.pid)
+              rescue Errno::ESRCH
+                # Process is already dead, so no worries.
+              end
+              process_thread.value
             end
-            process_thread.value
           end
         end
     end
@@ -52,6 +57,13 @@ module Schmooze
 
     def pid
       @_schmooze_process_thread && @_schmooze_process_thread.pid
+    end
+
+    def close
+      @_schmooze_stdin.close
+      @_schmooze_stdout.close
+      @_schmooze_stderr.close
+      @_schmooze_process_thread.value
     end
 
     private
@@ -69,7 +81,7 @@ module Schmooze
           chdir: @_schmooze_root
         )
         ensure_packages_are_initiated(*process_data)
-        ObjectSpace.define_finalizer(self, self.class.send(:finalize, *process_data))
+        ObjectSpace.define_finalizer(self, self.class.send(:finalize, Process.pid, *process_data))
         @_schmooze_stdin, @_schmooze_stdout, @_schmooze_stderr, @_schmooze_process_thread = process_data
       end
 

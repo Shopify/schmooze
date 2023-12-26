@@ -97,6 +97,10 @@ Schmooze::JavaScript::SyntaxError: [stdin]:1:1: error: unexpected <=
  ^^
 ```
 
+## Process lifecycle
+
+Nodejs process is created before invoking declared method. And process is killed with `ObjectSpace.define_finalizer` - when object is about to be destroyed by garbage collection.
+
 ## Caveats
 
 * Because we serialize the return values from JavaScript to JSON, you can't return circular data structures (like the Babel AST).

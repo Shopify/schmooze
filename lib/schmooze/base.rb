@@ -75,7 +75,7 @@ module Schmooze
       def spawn_process
         process_data = Open3.popen3(
           @_schmooze_env,
-          'node',
+          ENV.fetch('NODEJS_EXECUTABLE_PATH', 'node'),
           '-e',
           @_schmooze_code,
           chdir: @_schmooze_root

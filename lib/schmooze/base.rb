@@ -96,7 +96,7 @@ module Schmooze
           process_thread.join
 
           error_message = result[1]
-          if /\AError: Cannot find module '(.*)'\z/ =~ error_message
+          if /\AError: Cannot find module '(.*)'$/ =~ error_message
             package_name = $1
             package_json_path = File.join(@_schmooze_root, 'package.json')
             begin
